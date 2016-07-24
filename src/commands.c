@@ -546,15 +546,20 @@ static bool cmd_resize_tiling_direction(I3_CMD, Con *current, const char *way, c
     LOG("new_second_percent = %f\n", new_second_percent);
     /* Ensure that the new percentages are positive and greater than
      * 0.05 to have a reasonable minimum size. */
-    if (definitelyGreaterThan(new_first_percent, 0.05, DBL_EPSILON) &&
-        definitelyGreaterThan(new_second_percent, 0.05, DBL_EPSILON)) {
-        first->percent += ((double)ppt / 100.0);
-        second->percent -= ((double)ppt / 100.0);
-        LOG("first->percent after = %f\n", first->percent);
-        LOG("second->percent after = %f\n", second->percent);
-    } else {
-        LOG("Not resizing, already at minimum size\n");
+    if (!definitelyGreaterThan(new_first_percent, 0.05, DBL_EPSILON)) {
+        new_second_percent -= 0.05 - new_first_percent;
+        new_first_percent = 0.05;
+        LOG("Fixing up percentages because new_first_percent < 0.05\n");
+    } else if (!definitelyGreaterThan(new_second_percent, 0.05, DBL_EPSILON)) {
+        new_first_percent -= 0.05 - new_second_percent;
+        new_second_percent = 0.05;
+        LOG("Fixing up percentages because new_second_percent < 0.05\n");
     }
+
+    first->percent = new_first_percent;
+    second->percent = new_second_percent;
+    LOG("first->percent after = %f\n", first->percent);
+    LOG("second->percent after = %f\n", second->percent);
 
     return true;
 }
