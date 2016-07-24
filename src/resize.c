@@ -12,6 +12,16 @@
 #include "all.h"
 
 /*
+ * Returns true if a is definitely greater than b (using the given epsilon).
+ * (stolen from commands.c)
+ *
+ */
+static bool definitelyGreaterThan(float a, float b, float epsilon) {
+    return (a - b) > ( (fabs(a) < fabs(b) ? fabs(b) : fabs(a)) * epsilon);
+}
+
+
+/*
  * This is an ugly data structure which we need because there is no standard
  * way of having nested functions (only available as a gcc extension at the
  * moment, clang doesn’t support it) or blocks (only available as a clang
@@ -181,21 +191,30 @@ int resize_graphical_handler(Con *first, Con *second, orientation_t orientation,
     assert(first->percent > 0.0);
     assert(second->percent > 0.0);
 
-    // calculate the new percentage for the first container
-    double new_percent, difference;
+    // calculate the new percentages
     double percent = first->percent;
     DLOG("percent = %f\n", percent);
     int original = (orientation == HORIZ ? first->rect.width : first->rect.height);
     DLOG("original = %d\n", original);
-    new_percent = (original + pixels) * (percent / original);
-    difference = percent - new_percent;
-    DLOG("difference = %f\n", difference);
-    DLOG("new percent = %f\n", new_percent);
-    first->percent = new_percent;
+    double new_first_percent = (original + pixels) * (percent / original);
+    double new_second_percent = second->percent + (percent - new_first_percent);
+    DLOG("new_first_percent = %f\n", new_first_percent);
+    DLOG("new_second_percent = %f\n", new_second_percent);
+    /* Ensure that the new percentages are positive and greater than
+     * 0.05 to have a reasonable minimum size. */
+    if (!definitelyGreaterThan(new_first_percent, 0.05, DBL_EPSILON)) {
+        new_second_percent -= 0.05 - new_first_percent;
+        new_first_percent = 0.05;
+        LOG("Fixing up percentages because new_first_percent < 0.05\n");
+    } else if (!definitelyGreaterThan(new_second_percent, 0.05, DBL_EPSILON)) {
+        new_first_percent -= 0.05 - new_second_percent;
+        new_second_percent = 0.05;
+        LOG("Fixing up percentages because new_second_percent < 0.05\n");
+    }
 
-    // calculate the new percentage for the second container
-    double s_percent = second->percent;
-    second->percent = s_percent + difference;
+    first->percent = new_first_percent;
+    second->percent = new_second_percent;
+    DLOG("first->percent = %f\n", first->percent);
     DLOG("second->percent = %f\n", second->percent);
 
     // now we must make sure that the sum of the percentages remain 1.0
